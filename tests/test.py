@@ -21,7 +21,7 @@ def wait_until(fn, timeout=15):
     while True:
         if fn():
             break
-        print "sleeping", t
+        print("sleeping", t)
         time.sleep(1)
         t -= 1
         if t < 0:
@@ -96,17 +96,17 @@ class TestRouting(unittest.TestCase):
                 try:
                     result = json.loads(r1.content)
                 except:
-                    print "----->>>", r1.content
+                    print(r1.content)
                     raise
                 waiting_statuses.append(result)
 
             def wait_all_complete():
                 r2 = requests.get('http://localhost:8888/statuses')
-                print "------"
-                print r2.content
-                print "------"
+                print("------")
+                print(r2.content)
+                print("------")
                 results = json.loads(r2.content)
-                print results
+                print(results)
                 if len(results) == 4:
                     all_true = True
                     for i in range(1,5):
