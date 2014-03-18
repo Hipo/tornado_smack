@@ -1,0 +1,15 @@
+ <html>
+      <head>
+        <title>{% block title %}Default title{% end %}</title>
+      </head>
+      <body>
+        <ul>
+          <p>{{title}}</p>
+          {% for student in students %}
+            {% block student %}
+              <li>{{ escape(student['name']) }}</li>
+            {% end %}
+          {% end %}
+        </ul>
+      </body>
+ </html>
