@@ -137,3 +137,8 @@ You can install it with
 ```
 pip install tornado_smack
 ```
+
+Documentation
+------------------------
+
+Documentation lives here http://tornado-smack.readthedocs.org/en/latest/

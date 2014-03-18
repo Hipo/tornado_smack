@@ -26,6 +26,8 @@ Turns your application from this::
 
 to this::
 
+    from tornado_smack import App
+    
     app = App()
 
     @app.route("/foobar/<name>")
