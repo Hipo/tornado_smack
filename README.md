@@ -1,5 +1,6 @@
 tornado-smack
 =====================
+[![Build Status](https://travis-ci.org/Hipo/tornado-smack.png?branch=master)](https://travis-ci.org/Hipo/tornado-smack)
 
 Syntactic sugar for tornado
 ----------------------------
