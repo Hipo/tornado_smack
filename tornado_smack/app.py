@@ -19,7 +19,11 @@ from werkzeug.local import LocalStack, LocalProxy
 import logging
 
 logger = logging.getLogger(__name__)
-logger.addHandler(logging.NullHandler())
+try:
+    logger.addHandler(logging.NullHandler())
+except Exception as e:
+    # python 2.6
+    pass
 
 def _lookup_handler_object(name):
     top = _handler_ctx_stack.top
