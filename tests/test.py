@@ -60,8 +60,8 @@ class TestRouting(unittest.TestCase):
         app = App()
 
         @app.route("/statuses")
-        def get_statuses():
-            return statuses
+        def get_statuses(self):
+            self.write(statuses)
 
         @app.route("/somejson", nowrap=True)
         def somejson():
@@ -84,18 +84,27 @@ class TestRouting(unittest.TestCase):
             w()
             return {'req': handler.req_cnt}
 
+
         p3 = Process(target=app.run, kwargs={'debug':True})
         p3.start()
-        time.sleep(1)
+        time.sleep(3)
 
         try:
             waiting_statuses = []
             for i in range(1,5):
                 r1 = requests.get('http://localhost:8888/somejson')
-                waiting_statuses.append(json.loads(r1.content))
+                try:
+                    result = json.loads(r1.content)
+                except:
+                    print "----->>>", r1.content
+                    raise
+                waiting_statuses.append(result)
 
             def wait_all_complete():
                 r2 = requests.get('http://localhost:8888/statuses')
+                print "------"
+                print r2.content
+                print "------"
                 results = json.loads(r2.content)
                 print results
                 if len(results) == 4:

@@ -27,7 +27,7 @@ Turns your application from this::
 to this::
 
     from tornado_smack import App
-    
+
     app = App()
 
     @app.route("/foobar/<name>")
@@ -96,6 +96,7 @@ You can install it with pip::
 
 Api Documentation
 ------------------
+
 .. autoclass:: tornado_smack.app.App
     :members:
 
