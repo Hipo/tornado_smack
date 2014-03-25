@@ -1,1 +1,1 @@
-from .app import App, render_template
+from .app import App, render_template, handler

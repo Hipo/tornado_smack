@@ -17,6 +17,7 @@ import os
 import inspect
 from werkzeug.local import LocalStack, LocalProxy
 import logging
+from collections import OrderedDict
 
 logger = logging.getLogger(__name__)
 try:
@@ -136,7 +137,7 @@ class App(object):
                           you can explicitly set for some other template path
     """
     def __init__(self, debug=False, template_path=None):
-        self.registery = {}
+        self.registery = OrderedDict()
         self.url_map = Map()
         self.mapper = self.url_map.bind("", "/")
         self.debug = True
@@ -156,7 +157,7 @@ class App(object):
         """
         returns our compiled routes and classes as a list to be used in tornado
         """
-        self.registery = {}
+        self.registery = OrderedDict()
         for rule in self.methods:
             self.route_(**rule)
         return [(k, v) for k, v in self.registery.iteritems()]
@@ -251,17 +252,29 @@ class App(object):
 
         """
         def inner(fn):
-            self.methods.append(dict(
-                rule=rule,
+            self.add_route(rule=rule,
                  methods=methods,
                  werkzeug_route=werkzeug_route,
                  tornado_route=tornado_route,
                  handler_bases=handler_bases,
                  fn=fn,
-                 nowrap=nowrap
-            ))
+                 nowrap=nowrap)
             return fn
         return inner
+
+    def add_route(self, rule, fn=None, methods=None,
+                  werkzeug_route=None, tornado_route=None,
+                  handler_bases=None, nowrap=None):
+        assert callable(fn)
+        self.methods.append(dict(
+            rule=rule,
+             methods=methods,
+             werkzeug_route=werkzeug_route,
+             tornado_route=tornado_route,
+             handler_bases=handler_bases,
+             fn=fn,
+             nowrap=nowrap
+        ))
 
     def route_(self, rule, methods=None, werkzeug_route=None,
                     tornado_route=None, handler_bases=None, fn=None, nowrap=None):
@@ -269,6 +282,7 @@ class App(object):
             methods = ['GET']
 
         clsname = '%sHandler' % fn.__name__.capitalize()
+        # TODO: things get complicated if you use your own base class and debug=True
         if not handler_bases:
             if self.debug:
                 bases = (DebuggableHandler,)
@@ -327,7 +341,7 @@ class App(object):
         else:
             self.registery[rule] = klass
 
-    def run(self, port=8888, **settings):
+    def run(self, port=8888, address="127.0.0.1", **settings):
         self.debug = settings.get('debug', False)
         template_path = settings.get('template_path')
         if not template_path:
@@ -337,5 +351,5 @@ class App(object):
         else:
             application = tornado.web.Application(self.get_routes(), **settings)
         logger.info("starting server on port: %s", port)
-        application.listen(port)
+        application.listen(port, address)
         tornado.ioloop.IOLoop.instance().start()
