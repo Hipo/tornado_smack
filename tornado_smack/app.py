@@ -68,6 +68,7 @@ class DebuggableHandler(tornado.web.RequestHandler):
         html = traceback.render_full(**keywords).encode('utf-8', 'replace')
         return html.replace(b'WSGI', b'tornado')
 
+
 class DebugApplication(tornado.web.Application):
     "Tornado Application supporting werkzeug interactive debugger."
 
@@ -117,7 +118,6 @@ class TemplateProxy(object):
 def render_template(*args, **kwargs):
     return TemplateProxy(*args, **kwargs)
 
-
 class App(object):
 
     """
@@ -136,12 +136,15 @@ class App(object):
     :param template_path: we normally look for template in ./templates folder of your app.py
                           you can explicitly set for some other template path
     """
-    def __init__(self, debug=False, template_path=None):
+    def __init__(self, debug=False, template_path=None, template_engine='tornado'):
+        assert template_engine in ('tornado', 'jinja2')
         self.registery = OrderedDict()
         self.url_map = Map()
         self.mapper = self.url_map.bind("", "/")
         self.debug = True
         self.methods = []
+        self.routes_list = []
+
         if not template_path:
             frames = inspect.getouterframes(inspect.currentframe())
             frame,filename,line_number,function_name,lines,index = frames[0]
@@ -152,6 +155,13 @@ class App(object):
             self.template_path = os.path.realpath(os.path.join(os.path.dirname(filename), 'templates'))
         else:
             self.template_path = template_path
+
+        self.template_engine = template_engine
+
+        if template_engine == 'jinja2':
+            from jinja2 import Environment, FileSystemLoader
+            self.template_env = Environment(loader=FileSystemLoader(self.template_path))
+
 
     def get_routes(self):
         """
@@ -317,14 +327,35 @@ class App(object):
                     with StackContext(functools.partial(ctx_man, self)) as cm:
                         w = fn #wrap(fn)
                         result = w(*args, **kwargs)
+
                     if isinstance(result, TemplateProxy):
-                        self.render(*result.args, **result.kwargs)
+                        if self._template_engine == 'tornado':
+                            self.render(*result.args, **result.kwargs)
+                        else:
+                            template = self._template_env.get_template(result.args[0])
+                            self.finish(template.render(handler=self, **result.kwargs))
                     else:
                         self.finish(result)
+
+                    # import gc
+                    # # gc.collect()
+                    # print "is gc enabled", gc.isenabled()
+                    # print "-----------------"
+                    # for obj in gc.get_objects():
+                    #     if isinstance(obj, DebuggableHandler):
+                    #         print ">>>", type(obj), "<<<"
+                    #
+                    # print "-----------------"
+
+
                 m[method.lower()] = wrapper
             else:
                 m[method.lower()] = fn
+
         klass = type(clsname, bases, m)
+        klass._template_engine = self.template_engine
+        if self.template_engine != 'tornado':
+            klass._template_env = self.template_env
 
         use_werkzeug_route = None
 
@@ -346,15 +377,18 @@ class App(object):
         else:
             self.registery[rule] = klass
 
+    def add_routes(self, routes_list):
+        self.routes_list = routes_list
+
     def run(self, port=8888, address="127.0.0.1", **settings):
         self.debug = settings.get('debug', False)
         template_path = settings.get('template_path')
         if not template_path:
             settings['template_path'] = self.template_path
         if self.debug:
-            application = DebugApplication(self.get_routes(), **settings)
+            application = DebugApplication(self.get_routes() + self.routes_list, **settings)
         else:
-            application = tornado.web.Application(self.get_routes(), **settings)
+            application = tornado.web.Application(self.get_routes() + self.routes_list, **settings)
         logger.info("starting server on port: %s", port)
         application.listen(port, address)
         tornado.ioloop.IOLoop.instance().start()
