@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='tornado-smack',
-    version='1.0.1',
+    version='1.0.2',
     long_description=__doc__,
     packages=['tornado_smack'],
     include_package_data=True,
