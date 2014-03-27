@@ -211,6 +211,11 @@ class App(object):
                                         def get(self):
                                             ...
 
+                                if you set a base class for your FooHandler, in debug mode we'll add DebuggableHandler in between
+                                handler.__class__.__mro__
+                                (<class 'tornado_smack.app.FooHandler'>, <class 'tornado_smack.app.DebuggableHandler'>, <class '__main__.MyBaseHandler'>, <class 'tornado.web.RequestHandler'>, <type 'object'>)
+
+
         :param nowrap: if you add use self - or handler - as your first parameter::
 
                             @route('/foo')
@@ -289,7 +294,7 @@ class App(object):
             else:
                 bases = (tornado.web.RequestHandler,)
         else:
-            bases = handler_bases
+            bases = (DebuggableHandler,) + handler_bases
         m = {}
         for method in methods:
             inspected = inspect.getargspec(fn)

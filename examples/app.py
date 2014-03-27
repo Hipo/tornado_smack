@@ -1,8 +1,8 @@
 from tornado.gen import coroutine
 from tornado.httpclient import AsyncHTTPClient
-
+from tornado.web import RequestHandler
 from tornado_smack import App, render_template
-from tornado_smack.app import handler
+from tornado_smack.app import handler, DebuggableHandler
 from tornado.stack_context import StackContext, wrap
 
 app = App()
@@ -22,6 +22,19 @@ def sometemplate(self):
 @app.route("/template")
 def someothertemplate():
     return render_template("example.html", students=[{'name': 'a'}], title="hello")
+
+class MyBaseHandler(RequestHandler):
+    foo = "bar"
+
+@app.route('/exc', handler_bases=(MyBaseHandler,))
+def exc(handler):
+    """
+    if you set a base class for your ExcHandler, in debug mode we'll add DebuggableHandler in between
+    handler.__class__.__mro__
+    (<class 'tornado_smack.app.ExcHandler'>, <class 'tornado_smack.app.DebuggableHandler'>, <class '__main__.MyBaseHandler'>, <class 'tornado.web.RequestHandler'>, <type 'object'>)
+    """
+    print ">>>", handler.foo
+    raise Exception('foo')
 
 @app.route('/foo/<id>')
 def foo(id):
