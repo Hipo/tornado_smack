@@ -19,6 +19,14 @@ from werkzeug.local import LocalStack, LocalProxy
 import logging
 from collections import OrderedDict
 
+
+try:
+    from tornado.wsgi import WSGIAdapter
+except:
+    with_wsgi_adapter = False
+else:
+    with_wsgi_adapter = True
+
 logger = logging.getLogger(__name__)
 try:
     logger.addHandler(logging.NullHandler())
@@ -57,9 +65,9 @@ def get_current_traceback():
 
 class DebuggableHandler(tornado.web.RequestHandler):
 
-    def initialize(self):
-        if isinstance(self.application, DebugApplication):
-            self.get_error_html = self.get_debugger_html
+    def write_error(self, status_code, **kwargs):
+        self.finish(self.get_debugger_html(status_code, **kwargs))
+
 
     def get_debugger_html(self, status_code, **kwargs):
         assert isinstance(self.application, DebugApplication)
@@ -68,32 +76,8 @@ class DebuggableHandler(tornado.web.RequestHandler):
         html = traceback.render_full(**keywords).encode('utf-8', 'replace')
         return html.replace(b'WSGI', b'tornado')
 
-
 class DebugApplication(tornado.web.Application):
     "Tornado Application supporting werkzeug interactive debugger."
-
-    # This supports get_error_html in Handler above.
-
-    def __init__(self, *args, **kwargs):
-        from werkzeug.debug import DebuggedApplication
-        self.debug_app = DebuggedApplication(self.debug_wsgi_app, evalex=True)
-        self.debug_container = tornado.wsgi.WSGIContainer(self.debug_app)
-        super(DebugApplication, self).__init__(*args, **kwargs)
-
-    def __call__(self, request):
-        if '__debugger__' in request.uri:
-            # Do not call get_current_traceback here, as this is a follow-up
-            # request from the debugger. DebugHandler loads the traceback.
-            return self.debug_container(request)
-        return super(DebugApplication, self).__call__(request)
-
-    @classmethod
-    def debug_wsgi_app(cls, environ, start_response):
-        "Fallback WSGI application, wrapped by werkzeug's debug middleware."
-        status = '500 Internal Server Error'
-        response_headers = [('Content-type', 'text/plain')]
-        start_response(status, response_headers)
-        return ['Failed to load debugger.\n']
 
     def get_current_traceback(self):
         "Get the current Python traceback, keeping stack frames in debug app."
@@ -109,6 +93,31 @@ class DebugApplication(tornado.web.Application):
         # Otherwise, an attacker could inject code into our application.
         # Debugger gives an empty response when secret is not provided.
         return dict(evalex=self.debug_app.evalex, secret=self.debug_app.secret)
+
+    if not with_wsgi_adapter:
+        # these are needed for tornado < 4
+        def __init__(self, *args, **kwargs):
+            from werkzeug.debug import DebuggedApplication
+            self.debug_app = DebuggedApplication(app=self, evalex=True)
+            self.debug_container = tornado.wsgi.WSGIContainer(self.debug_app)
+            super(DebugApplication, self).__init__(*args, **kwargs)
+
+        def __call__(self, request):
+            if '__debugger__' in request.uri:
+                # Do not call get_current_traceback here, as this is a follow-up
+                # request from the debugger. DebugHandler loads the traceback.
+                return self.debug_container(request)
+            return super(DebugApplication, self).__call__(request)
+
+        @classmethod
+        def debug_wsgi_app(cls, environ, start_response):
+            "Fallback WSGI application, wrapped by werkzeug's debug middleware."
+            status = '500 Internal Server Error'
+            response_headers = [('Content-type', 'text/plain')]
+            start_response(status, response_headers)
+            return ['Failed to load debugger.\n']
+
+
 
 class TemplateProxy(object):
     def __init__(self, *args, **kwargs):
@@ -386,9 +395,27 @@ class App(object):
         if not template_path:
             settings['template_path'] = self.template_path
         if self.debug:
-            application = DebugApplication(self.get_routes() + self.routes_list, **settings)
+            if with_wsgi_adapter:
+                import tornado.httpserver
+                from werkzeug.debug import DebuggedApplication
+                application = DebugApplication(self.get_routes() + self.routes_list, **settings)
+                wsgi_application = tornado.wsgi.WSGIAdapter(application)
+
+                debug_app = DebuggedApplication(app=wsgi_application, evalex=True)
+                application.debug_app = debug_app
+                debug_container = tornado.wsgi.WSGIContainer(debug_app)
+
+                http_server = tornado.httpserver.HTTPServer(debug_container)
+                http_server.listen(8888)
+                tornado.ioloop.IOLoop.instance().start()
+            else:
+                import tornado.ioloop
+                application = DebugApplication(self.get_routes() + self.routes_list, **settings)
+                application.listen(port, address)
+                tornado.ioloop.IOLoop.instance().start()
         else:
+            import tornado.web
             application = tornado.web.Application(self.get_routes() + self.routes_list, **settings)
-        logger.info("starting server on port: %s", port)
-        application.listen(port, address)
-        tornado.ioloop.IOLoop.instance().start()
+            logger.info("starting server on port: %s", port)
+            application.listen(port, address)
+            tornado.ioloop.IOLoop.instance().start()
