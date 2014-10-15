@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='tornado-smack',
-    version='1.0.3',
+    version='1.0.4',
     long_description=__doc__,
     description='Syntactic sugar for tornado',
     url='https://github.com/Hipo/tornado_smack',
